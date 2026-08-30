@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Ether Stagger</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+:root{--void:#0b0a12;--acid:#b6ff3a;--blood:#ff2f47;--amber:#ffc400;--bone:#ece3d0;--ash:#6b6478}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--void);font-family:'Special Elite',monospace;color:var(--bone);user-select:none;touch-action:manipulation;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hud{position:fixed;top:0;left:0;right:0;padding:14px 16px;display:flex;justify-content:space-between}
+.eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--amber);border-left:3px solid var(--amber);padding-left:8px}
+.timer{font-family:'Anton',sans-serif;font-size:42px;line-height:.8}
+.beat{width:120px;height:120px;border-radius:50%;background:var(--panel,#15111f);border:3px solid var(--amber);display:flex;align-items:center;justify-content:center;font-size:42px;margin:30px 0;transition:transform .1s}
+.beat.pulse{transform:scale(1.15);border-color:var(--acid)}
+.steps{font-family:'Anton',sans-serif;font-size:28px;margin-bottom:12px}
+.intro,.result{position:fixed;inset:0;z-index:40;background:rgba(6,5,10,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px}
+.result{display:none}.result.show{display:flex}
+.intro h1,.verdict{font-family:'Anton',sans-serif;font-size:clamp(32px,12vw,54px);line-height:.9;text-transform:uppercase}
+.result.win .verdict{color:var(--acid)}.result.lose .verdict{color:var(--blood)}
+.go-btn,.close-btn{margin-top:22px;font-family:'Anton',sans-serif;font-size:18px;padding:14px 28px;border-radius:12px;border:none;cursor:pointer}
+.go-btn{background:var(--amber);color:#111}
+.close-btn{background:transparent;color:var(--ash);border:1px solid var(--ash)}
+.gor-track{width:min(260px,80vw);height:12px;background:#15111f;border-radius:8px;margin-top:14px;overflow:hidden}
+.gor-fill{height:100%;background:linear-gradient(90deg,var(--blood),var(--amber),var(--acid));transition:width .6s}
+</style>
+</head>
+<body>
+<div class="hud">
+  <div class="eyebrow">The Savage Journey<small>Peak · Ether Stagger</small></div>
+  <div class="timer" id="timer">22<small style="display:block;font-size:9px;color:var(--ash)">seconds</small></div>
+</div>
+<div class="steps" id="steps">0 / 12</div>
+<div class="beat" id="beat">👣</div>
+<p style="opacity:.7;font-size:13px">Tap on the beat</p>
+<div class="intro" id="intro">
+  <h1>The Ether<br>Stagger</h1>
+  <p style="margin-top:14px;max-width:28ch;opacity:.85">The floor is moving. Keep the rhythm. <b>12 clean steps</b> or the ether takes your balance permanently.</p>
+  <button class="go-btn" id="go">START WALKING</button>
+</div>
+<div class="result" id="result">
+  <div class="verdict" id="verdict"></div>
+  <p id="flavor" style="margin:12px 0;opacity:.85;max-width:28ch"></p>
+  <div class="gor-track"><div class="gor-fill" id="gorFill"></div></div>
+  <button class="close-btn" id="close">Close</button>
+</div>
+<script>
+const TG=window.Telegram?.WebApp;
+const params=new URLSearchParams(location.search);
+const PEAK_ID=params.get("peak_id");
+const LIVE=!!(TG&&TG.initData&&PEAK_ID);
+if(TG){TG.ready();TG.expand()}
+let steps=0,timeLeft=22,resolved=false,gor=100,lastBeat=0,beatInterval=700;
+const beatEl=document.getElementById("beat");
+function pulse(){beatEl.classList.add("pulse");setTimeout(()=>beatEl.classList.remove("pulse"),120);lastBeat=performance.now()}
+setInterval(pulse,beatInterval);
+document.getElementById("beat").onclick=()=>{
+  if(resolved)return;
+  const delta=Math.abs(performance.now()-lastBeat);
+  if(delta<180){steps++;document.getElementById("steps").textContent=steps+" / 12";TG?.HapticFeedback?.impactOccurred("light");
+    if(steps>=12)finish(true)}
+  else TG?.HapticFeedback?.notificationOccurred("error")
+};
+function tick(){timeLeft--;document.getElementById("timer").firstChild.textContent=Math.max(0,timeLeft);
+if(timeLeft<=0)finish(steps>=12)}
+async function finish(won){
+  if(resolved)return;resolved=true;
+  let outcome;
+  if(LIVE){try{const r=await fetch("/api/peak/answer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({peak_id:PEAK_ID,challenge:"stagger",init_data:TG.initData,hit:won})});outcome=await r.json()}catch(e){outcome={success:won,gor:won?gor:Math.max(0,gor-15),gonzo_delta:won?11:0}}}
+  else outcome={success:won,gor:won?gor:Math.max(0,gor-15),gonzo_delta:won?11:0};
+  document.getElementById("verdict").textContent=won?"Still upright.":"Face down.";
+  document.getElementById("flavor").textContent=won?"Twelve steps. The ether couldn't take your legs.":"The floor won. You are now part of the carpet pattern.";
+  document.getElementById("gorFill").style.width=outcome.gor+"%";
+  document.getElementById("result").classList.add(won?"win":"lose","show");
+}
+document.getElementById("go").onclick=()=>{document.getElementById("intro").style.display="none";setInterval(tick,1000)};
+document.getElementById("close").onclick=()=>{if(TG)TG.close();else location.reload()};
+</script>
+</body>
+</html>

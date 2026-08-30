@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Bat Swarm</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+:root{--void:#0b0a12;--acid:#b6ff3a;--blood:#ff2f47;--amber:#ffc400;--bone:#ece3d0;--ash:#6b6478}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--void);font-family:'Special Elite',monospace;color:var(--bone);user-select:none;touch-action:none}
+canvas{position:fixed;inset:0;display:block}
+.hud{position:fixed;top:0;left:0;right:0;padding:14px 16px;display:flex;justify-content:space-between;z-index:20;pointer-events:none}
+.eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--blood);border-left:3px solid var(--blood);padding-left:8px}
+.eyebrow small{display:block;color:var(--ash)}
+.timer{font-family:'Anton',sans-serif;font-size:42px;line-height:.8;text-align:right}
+.timer.warn{color:var(--amber)}.timer.crit{color:var(--acid)}
+.timer small{display:block;font-size:9px;letter-spacing:.2em;color:var(--ash);text-transform:uppercase}
+.intro,.result{position:fixed;inset:0;z-index:40;background:rgba(6,5,10,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px}
+.result{display:none}.result.show{display:flex}
+.intro h1,.verdict{font-family:'Anton',sans-serif;font-size:clamp(34px,13vw,62px);line-height:.86;text-transform:uppercase}
+.result.win .verdict{color:var(--acid)}.result.lose .verdict{color:var(--blood)}
+.go-btn,.close-btn{margin-top:24px;font-family:'Anton',sans-serif;font-size:20px;padding:14px 32px;border-radius:12px;border:none;cursor:pointer}
+.go-btn{background:var(--blood);color:#fff}
+.close-btn{background:transparent;color:var(--ash);border:1px solid var(--ash)}
+.gor-track{width:min(280px,80vw);height:12px;background:#15111f;border-radius:8px;margin-top:16px;overflow:hidden}
+.gor-fill{height:100%;background:linear-gradient(90deg,var(--blood),var(--amber),var(--acid));transition:width .6s}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="eyebrow">The Savage Journey<small>Peak · Bat Country</small></div>
+  <div class="timer" id="timer">20<small>seconds</small></div>
+</div>
+<div class="intro" id="intro">
+  <h1>The Bat<br>Swarm</h1>
+  <p style="margin-top:16px;max-width:30ch;opacity:.85">They are coming out of the sky. Swat <b>6 bats</b> before time runs out. Decoys cost you.</p>
+  <button class="go-btn" id="go">🦇 ENTER BAT COUNTRY</button>
+</div>
+<div class="result" id="result">
+  <div class="verdict" id="verdict"></div>
+  <p id="flavor" style="margin:12px 0;opacity:.85;max-width:28ch"></p>
+  <div class="gor-track"><div class="gor-fill" id="gorFill"></div></div>
+  <button class="close-btn" id="close">Close</button>
+</div>
+<script>
+const TG=window.Telegram?.WebApp;
+const params=new URLSearchParams(location.search);
+const PEAK_ID=params.get("peak_id");
+const LIVE=!!(TG&&TG.initData&&PEAK_ID);
+if(TG){TG.ready();TG.expand();try{TG.setBackgroundColor("#0b0a12")}catch(e){}}
+const cv=document.getElementById("c"),cx=cv.getContext("2d");
+let W,H,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+"px";cv.style.height=H+"px";cx.setTransform(DPR,0,0,DPR,0,0)}
+resize();addEventListener("resize",resize);
+let bats=[],score=0,timeLeft=20,running=false,resolved=false,gor=100;
+function spawn(){bats.push({x:Math.random()*W,y:-30,vy:120+Math.random()*100,vx:(Math.random()-0.5)*80,r:22+Math.random()*10,decoy:Math.random()<0.25})}
+function loop(t){
+  if(!running)return;
+  cx.fillStyle="#0b0a12";cx.fillRect(0,0,W,H);
+  for(const b of bats){
+    b.y+=b.vy*0.016;b.x+=b.vx*0.016;
+    cx.font=(b.r*1.6)+"px serif";cx.textAlign="center";cx.textBaseline="middle";
+    cx.globalAlpha=b.decoy?0.45:1;
+    cx.fillText(b.decoy?"🦎":"🦇",b.x,b.y);
+    cx.globalAlpha=1;
+  }
+  bats=bats.filter(b=>b.y<H+40);
+  if(Math.random()<0.06)spawn();
+  requestAnimationFrame(loop);
+}
+cv.addEventListener("pointerdown",e=>{
+  if(!running||resolved)return;
+  const x=e.clientX,y=e.clientY;
+  for(let i=bats.length-1;i>=0;i--){
+    const b=bats[i];
+    if(Math.hypot(b.x-x,b.y-y)<b.r+12){
+      bats.splice(i,1);
+      if(b.decoy){score=Math.max(0,score-1);TG?.HapticFeedback?.notificationOccurred("error")}
+      else{score++;TG?.HapticFeedback?.impactOccurred("light")}
+      break;
+    }
+  }
+});
+function tick(){timeLeft--;document.getElementById("timer").firstChild.textContent=Math.max(0,timeLeft);
+document.getElementById("timer").className="timer"+(timeLeft<=5?" crit":timeLeft<=10?" warn":"");
+if(timeLeft<=0)finish(score>=6)}
+async function finish(won){
+  if(resolved)return;resolved=true;running=false;
+  let outcome;
+  if(LIVE){try{const r=await fetch("/api/peak/answer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({peak_id:PEAK_ID,challenge:"bat_swarm",init_data:TG.initData,hit:won})});outcome=await r.json()}catch(e){outcome={success:won,gor:won?gor:Math.max(0,gor-16),gonzo_delta:won?12:0}}}
+  else outcome={success:won,gor:won?gor:Math.max(0,gor-16),gonzo_delta:won?12:0};
+  document.getElementById("verdict").textContent=won?"Clear.":"Overrun.";
+  document.getElementById("flavor").textContent=won?"Six bats down. The sky lets you breathe for one more mile.":"The swarm took you. The desert is full of wings tonight.";
+  document.getElementById("gorFill").style.width=outcome.gor+"%";
+  document.getElementById("result").classList.add(won?"win":"lose","show");
+}
+document.getElementById("go").onclick=()=>{document.getElementById("intro").style.display="none";running=true;setInterval(tick,1000);requestAnimationFrame(loop)};
+document.getElementById("close").onclick=()=>{if(TG)TG.close();else location.reload()};
+</script>
+</body>
+</html>
