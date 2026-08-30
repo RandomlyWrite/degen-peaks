@@ -9,10 +9,352 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&display=swap" rel="stylesheet">
 <style>
-  /* truncated for this simulation - full content was prepared */
+  :root{
+    --void:#0b0a12; --panel:#15111f; --panel-2:#1d1730;
+    --acid:#b6ff3a; --blood:#ff2f47; --neon:#ff3ea5;
+    --amber:#ffc400; --bone:#ece3d0; --ash:#6b6478;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:var(--void)}
+  body{font-family:'Special Elite',ui-monospace,monospace;color:var(--bone);
+    display:flex;flex-direction:column;padding:14px;user-select:none;touch-action:manipulation;
+    background-image:
+      radial-gradient(120% 80% at 50% -10%, rgba(255,196,0,.10), transparent 55%),
+      radial-gradient(90% 60% at 0% 110%, rgba(255,62,165,.12), transparent 60%)}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.06;
+    mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E")}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:49;
+    box-shadow:inset 0 0 160px 40px rgba(0,0,0,.9)}
+  body.shake{animation:shake .4s cubic-bezier(.36,.07,.19,.97)}
+  @keyframes shake{10%,90%{transform:translate(-3px,2px)}30%,70%{transform:translate(5px,-3px)}
+    50%{transform:translate(-5px,3px)}}
+
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;z-index:2}
+  .eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--amber);
+    border-left:3px solid var(--amber);padding-left:8px;line-height:1.4}
+  .eyebrow small{display:block;color:var(--ash);letter-spacing:.2em}
+  .timer{font-family:'Anton',sans-serif;font-size:44px;line-height:.8;text-align:right;
+    font-variant-numeric:tabular-nums}
+  .timer.warn{color:var(--amber)}
+  .timer.crit{color:var(--blood);animation:pulse .45s infinite alternate}
+  @keyframes pulse{to{opacity:.3}}
+  .timer small{display:block;font-family:'Special Elite';font-size:9px;
+    letter-spacing:.2em;color:var(--ash);text-transform:uppercase}
+
+  .memo-frame{flex:1;min-height:0;margin-top:10px;position:relative;
+    transform:rotate(-.5deg)}
+  .memo{
+    height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    background:
+      radial-gradient(140% 90% at 50% 0%, rgba(0,0,0,0) 60%, rgba(120,80,20,.14)),
+      linear-gradient(175deg,#efe7d2,#e0d4b6);
+    color:#241d12;border-radius:4px;padding:16px 14px 20px;
+    box-shadow:0 12px 34px rgba(0,0,0,.65), 0 0 0 1px rgba(0,0,0,.4);
+    font-size:13.5px;line-height:1.6;
+  }
+  .stamp{display:inline-block;border:2px solid var(--blood);color:var(--blood);
+    padding:2px 8px;font-size:10px;letter-spacing:.25em;text-transform:uppercase;
+    transform:rotate(2deg);margin-bottom:10px;opacity:.85}
+  .memo .line{display:block;position:relative;white-space:pre-wrap;min-height:1.1em;
+    opacity:0;transform:translateY(3px);transition:opacity .12s, transform .12s}
+  .memo .line.typed{opacity:1;transform:none}
+  .memo .line.redacted::after{
+    content:"";position:absolute;inset:-1px -2px;background:#17130c;border-radius:2px;
+    transform-origin:left center;animation:sweep .5s ease-out forwards;
+  }
+  @keyframes sweep{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  .memo .line.redacted{color:transparent}
+  .memo-frame.glitch .memo{animation:paperglitch .18s steps(2) 2}
+  @keyframes paperglitch{50%{transform:translate(2px,-1px) skewX(.6deg);filter:contrast(1.3)}}
+  .burnnote{position:absolute;right:8px;bottom:8px;font-size:10px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--blood);opacity:0;transform:rotate(-3deg);
+    transition:opacity .4s;pointer-events:none}
+  .burnnote.on{opacity:.9;animation:pulse .6s infinite alternate}
+
+  .options{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  .opt{font-family:'Anton',sans-serif;font-size:clamp(24px,9vw,36px);letter-spacing:.05em;
+    padding:16px 0;border-radius:12px;cursor:pointer;text-align:center;
+    background:linear-gradient(160deg,var(--panel-2),var(--panel));
+    border:1px solid rgba(236,227,208,.12);color:var(--bone);
+    transition:transform .09s ease}
+  .opt:active{transform:scale(.92)}
+
+  .result{position:fixed;inset:0;z-index:60;background:rgba(6,5,10,.94);
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px;text-align:center}
+  .result.show{display:flex;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0}}
+  .result .verdict{font-family:'Anton',sans-serif;font-size:clamp(40px,15vw,78px);
+    line-height:.85;text-transform:uppercase;margin-bottom:16px}
+  .result.win .verdict{color:var(--acid);text-shadow:3px 3px 0 var(--amber)}
+  .result.lose .verdict{color:var(--blood);text-shadow:3px 3px 0 #000}
+  .result .flavor{font-size:15px;line-height:1.5;opacity:.85;max-width:30ch;margin-bottom:22px}
+  .result .stat{font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--ash)}
+  .result .stat b{color:var(--bone)}
+  .gor-wrap{width:min(320px,80vw);margin-top:20px}
+  .gor-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .gor-label{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ash)}
+  .gor-val{font-family:'Anton',sans-serif;font-size:20px;color:var(--acid)}
+  .gor-track{height:13px;border-radius:8px;background:var(--panel);overflow:hidden;
+    border:1px solid rgba(236,227,208,.08)}
+  .gor-fill{height:100%;width:100%;border-radius:8px;
+    background:linear-gradient(90deg,var(--blood),var(--amber) 45%,var(--acid));
+    transition:width .7s cubic-bezier(.22,1,.36,1)}
+  .close-btn{margin-top:26px;font-family:'Special Elite';font-size:13px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--ash);border:1px solid var(--ash);
+    background:transparent;padding:12px 22px;border-radius:8px;cursor:pointer}
+
+  .intro{position:fixed;inset:0;z-index:45;background:rgba(6,5,10,.9);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:32px}
+  .intro h1{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;
+    font-size:clamp(34px,13vw,64px);line-height:.86;color:var(--bone);
+    text-shadow:3px 3px 0 var(--amber)}
+  .intro p{margin-top:18px;font-size:14px;line-height:1.55;max-width:32ch;opacity:.88}
+  .intro p b{color:var(--amber)}
+  .intro p i{color:var(--blood);font-style:normal}
+  .go-btn{margin-top:30px;font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--void);background:var(--amber);
+    border:none;padding:16px 38px;border-radius:12px;cursor:pointer;
+    box-shadow:0 0 30px rgba(255,196,0,.35)}
+  .go-btn:active{transform:scale(.94)}
 </style>
 </head>
 <body>
-  <!-- Full attorney.html content would go here. Due to length limits in this step, the actual full content from /home/workdir/artifacts/webapp/attorney.html is used in the real call. -->
+  <header>
+    <div class="eyebrow">The Savage Journey<small>Peak · Privileged &amp; Confidential</small></div>
+    <div class="timer" id="timer">20<small>seconds</small></div>
+  </header>
+
+  <div class="memo-frame" id="memoFrame">
+    <div class="memo" id="memo"><span class="stamp">Destroy after reading</span></div>
+    <div class="burnnote" id="burnnote">The memo is destroying itself</div>
+  </div>
+
+  <div class="options">
+    <div class="opt" data-opt="A">A</div>
+    <div class="opt" data-opt="B">B</div>
+    <div class="opt" data-opt="C">C</div>
+  </div>
+
+  <div class="intro" id="intro">
+    <h1>The Attorney's<br>Advice</h1>
+    <p>Dr. G. has smuggled you a memo. Somewhere in it is <b>the one safe button</b>.<br><br>
+    Read fast — the memo is rigged. <i>It redacts itself while the clock runs</i>,
+    and once a line goes black it is gone forever.</p>
+    <button class="go-btn" id="goBtn">⚖️ OPEN THE MEMO</button>
+  </div>
+
+  <div class="result" id="result">
+    <div class="verdict" id="verdict"></div>
+    <p class="flavor" id="flavor"></p>
+    <p class="stat" id="statLine"></p>
+    <div class="gor-wrap">
+      <div class="gor-row"><span class="gor-label">Grip on Reality</span>
+        <span class="gor-val" id="gorVal">100%</span></div>
+      <div class="gor-track"><div class="gor-fill" id="gorFill"></div></div>
+    </div>
+    <button class="close-btn" id="closeBtn">Close the transmission</button>
+  </div>
+
+<script>
+/* Full attorney.html content from original file - the complete self-redacting memo challenge */
+const CHALLENGE_SECONDS = 20;
+const TYPE_MS      = 55;
+const REDACT_START = 3;
+const OPTIONS = ["A","B","C"];
+
+const TG = window.Telegram?.WebApp;
+const params  = new URLSearchParams(location.search);
+const PEAK_ID = params.get("peak_id");
+const LIVE    = !!(TG && TG.initData && PEAK_ID);
+if (TG){
+  TG.ready(); TG.expand();
+  try { TG.setBackgroundColor("#0b0a12"); TG.setHeaderColor("#0b0a12"); } catch(e){}
+  TG.disableVerticalSwipes?.();
+}
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+let gor=100, resolved=false, timeLeft=CHALLENGE_SECONDS;
+let tickId, redactId, glitchId, demoCorrect=null, lineEls=[], redactOrder=[];
+
+const timerEl = document.getElementById("timer");
+const memoEl  = document.getElementById("memo");
+
+const DEMO_MEMO = (c,w)=>[
+"URGENT LEGAL COMMUNICATION",
+"ATTORNEY-CLIENT PRIVILEGE — DO NOT FORWARD",
+"",
+"FROM: The Office of Dr. Gonzo, Esq.",
+"TO:   You, specifically. Yes, you.",
+"RE:   The casino incident. All of it.",
+"",
+"Listen. I've reviewed your file. It's worse",
+"than you think. The bat count alone is three",
+"separate felonies in Clark County.",
+"",
+"HOWEVER. I found a loophole.",
+"There is exactly ONE correct answer here.",
+"",
+`         >>> CHOOSE OPTION ${c} <<<`,
+"",
+`Button ${w[0]} is a federal informant.`,
+`Button ${w[1]} is a hallucination. Ignore it.`,
+"",
+"Act casual. Don't look at the cameras.",
+"                    — Dr. G., Your Attorney",
+];
+
+async function getMemoLines(){
+  if (LIVE){
+    try{
+      const res = await fetch("/api/peak/challenge", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ peak_id:PEAK_ID, challenge:"attorneys_advice", init_data:TG.initData })
+      });
+      const data = await res.json();
+      return data.text.split("\n");
+    }catch(e){ /* fall through */ }
+  }
+  demoCorrect = OPTIONS[Math.floor(Math.random()*3)];
+  return DEMO_MEMO(demoCorrect, OPTIONS.filter(o=>o!==demoCorrect));
+}
+
+async function start(){
+  document.getElementById("intro").style.display="none";
+  const lines = await getMemoLines();
+
+  lineEls = lines.map(t=>{
+    const el = document.createElement("span");
+    el.className="line";
+    el.textContent = t.length ? t : " ";
+    memoEl.appendChild(el);
+    return el;
+  });
+
+  let i=0;
+  const typer = setInterval(()=>{
+    if (i < lineEls.length){
+      lineEls[i].classList.add("typed");
+      if (!reduceMotion && i%3===0) TG?.HapticFeedback?.selectionChanged?.();
+      i++;
+    } else {
+      clearInterval(typer);
+      armRedaction();
+    }
+  }, TYPE_MS);
+
+  tickId = setInterval(tick, 1000);
+
+  if (!reduceMotion){
+    glitchId = setInterval(()=>{
+      const f = document.getElementById("memoFrame");
+      f.classList.remove("glitch"); void f.offsetWidth; f.classList.add("glitch");
+    }, 2600);
+  }
+}
+
+function armRedaction(){
+  redactOrder = lineEls.map((_,i)=>i)
+    .filter(i => lineEls[i].textContent.trim().length)
+    .sort(()=>Math.random()-0.5);
+
+  setTimeout(()=>{
+    document.getElementById("burnnote").classList.add("on");
+    const remaining = Math.max(4, timeLeft - 2);
+    const per = (remaining*1000) / redactOrder.length;
+    redactId = setInterval(()=>{
+      const idx = redactOrder.shift();
+      if (idx === undefined){ clearInterval(redactId); return; }
+      lineEls[idx].classList.add("redacted");
+    }, per);
+  }, REDACT_START*1000);
+}
+
+function tick(){
+  timeLeft -= 1;
+  timerEl.firstChild.textContent = Math.max(0,timeLeft);
+  timerEl.className = "timer" + (timeLeft<=5?" crit":timeLeft<=10?" warn":"");
+  if (timeLeft <= 0 && !resolved){
+    resolved = true; stopAll();
+    finish(null);
+  }
+}
+
+function stopAll(){ clearInterval(tickId); clearInterval(redactId); clearInterval(glitchId); }
+
+document.querySelectorAll(".opt").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    if (resolved) return;
+    resolved = true; stopAll();
+    TG?.HapticFeedback?.impactOccurred("rigid");
+    finish(btn.dataset.opt);
+  });
+});
+
+async function finish(chosen){
+  let outcome;
+  if (LIVE){
+    try{
+      const res = await fetch("/api/peak/answer", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ peak_id:PEAK_ID, challenge:"attorneys_advice",
+          init_data:TG.initData, chosen })
+      });
+      outcome = await res.json();
+    }catch(e){ outcome = localOutcome(chosen); }
+  } else {
+    outcome = localOutcome(chosen);
+  }
+  render(outcome, chosen===null);
+}
+
+function localOutcome(chosen){
+  const loss=15, gain=10;
+  const ok = chosen!==null && chosen===demoCorrect;
+  return ok
+    ? { success:true,  gor, gonzo_delta:gain, eliminated:false }
+    : { success:false, gor:Math.max(0,gor-loss), gonzo_delta:0, eliminated:(gor-loss)<=0 };
+}
+
+function render(o, timedOut){
+  const result=document.getElementById("result"),
+        verdict=document.getElementById("verdict"),
+        flavor=document.getElementById("flavor"),
+        statLine=document.getElementById("statLine");
+
+  gor=o.gor;
+  document.getElementById("gorFill").style.width=gor+"%";
+  document.getElementById("gorVal").textContent=gor+"%";
+
+  if (o.success){
+    result.classList.add("win");
+    verdict.textContent="Case dismissed.";
+    flavor.textContent="You got the instruction out before the ink did. The management's motion collapses. Dr. G. eats the last corner of the memo, just to be sure.";
+    statLine.innerHTML=`Gonzo Score <b>+${o.gonzo_delta}</b> · Grip holds at <b>${gor}%</b>`;
+    if (!timedOut) document.body.classList.add("shake");
+  } else if (o.eliminated){
+    result.classList.add("lose");
+    verdict.textContent="Disbarred from reality.";
+    flavor.textContent="Your Grip hit zero mid-deposition. You walk into the desert to represent yourself before the reptile court.";
+    statLine.innerHTML=`Grip on Reality <b>0%</b> · <b>Eliminated</b>`;
+  } else {
+    result.classList.add("lose");
+    verdict.textContent= timedOut ? "Fully redacted." : "Objection.";
+    flavor.textContent= timedOut
+      ? "You watched the memo eat itself and the answer went with it. The window closed. The management noticed you reading."
+      : "Wrong button. That one was a federal informant posing as a choice. Dr. G. is NOT happy.";
+    statLine.innerHTML=`Grip on Reality dropped to <b>${gor}%</b>`;
+  }
+  result.classList.add("show");
+}
+
+document.getElementById("closeBtn").addEventListener("click", ()=>{
+  if (TG) TG.close(); else location.reload();
+});
+document.getElementById("goBtn").addEventListener("click", start);
+document.getElementById("gorFill").style.width=gor+"%";
+</script>
 </body>
 </html>
