@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The One-Armed Bandit</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0b0a12; --panel:#15111f; --panel-2:#1d1730;
+    --acid:#b6ff3a; --blood:#ff2f47; --neon:#ff3ea5;
+    --amber:#ffc400; --bone:#ece3d0; --ash:#6b6478;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:var(--void)}
+  body{font-family:'Special Elite',ui-monospace,monospace;color:var(--bone);
+    user-select:none;touch-action:manipulation;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background-image:radial-gradient(120% 80% at 50% -10%,rgba(255,62,165,.12),transparent 55%)}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.06;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E")}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:49;
+    box-shadow:inset 0 0 160px 40px rgba(0,0,0,.9)}
+  .hud{position:fixed;top:0;left:0;right:0;padding:14px 16px;display:flex;justify-content:space-between;z-index:30}
+  .eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--neon);
+    border-left:3px solid var(--neon);padding-left:8px;line-height:1.4}
+  .eyebrow small{display:block;color:var(--ash);letter-spacing:.2em}
+  .timer{font-family:'Anton',sans-serif;font-size:42px;line-height:.8;text-align:right}
+  .timer.warn{color:var(--amber)}
+  .timer.crit{color:var(--blood)}
+  .timer small{display:block;font-family:'Special Elite';font-size:9px;letter-spacing:.2em;color:var(--ash);text-transform:uppercase}
+  .machine{width:min(340px,90vw);background:linear-gradient(160deg,#1f1830,#15111f);border-radius:18px;
+    border:2px solid rgba(255,62,165,.25);padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.7)}
+  .reels{display:flex;gap:8px;justify-content:center;margin:20px 0}
+  .reel{width:80px;height:90px;background:#0d0a14;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    font-size:42px;border:2px solid rgba(236,227,208,.1);overflow:hidden}
+  .lever{margin-top:18px;text-align:center}
+  .pull{font-family:'Anton',sans-serif;font-size:20px;letter-spacing:.08em;text-transform:uppercase;
+    color:#fff;background:var(--neon);border:none;padding:14px 36px;border-radius:12px;cursor:pointer}
+  .pull:active{transform:scale(.94)}
+  .pull:disabled{opacity:.4;cursor:default}
+  .intro,.result{position:fixed;inset:0;z-index:45;background:rgba(6,5,10,.92);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px}
+  .result{display:none}
+  .result.show{display:flex}
+  .intro h1,.result .verdict{font-family:'Anton',sans-serif;font-size:clamp(32px,12vw,56px);line-height:.9;text-transform:uppercase}
+  .result.win .verdict{color:var(--acid)}
+  .result.lose .verdict{color:var(--blood)}
+  .go-btn,.close-btn{margin-top:24px;font-family:'Anton',sans-serif;font-size:18px;padding:14px 28px;border-radius:12px;border:none;cursor:pointer}
+  .go-btn{background:var(--neon);color:#fff}
+  .close-btn{background:transparent;color:var(--ash);border:1px solid var(--ash)}
+  .gor-wrap{width:min(280px,80vw);margin-top:18px}
+  .gor-track{height:12px;background:#15111f;border-radius:8px;overflow:hidden}
+  .gor-fill{height:100%;background:linear-gradient(90deg,var(--blood),var(--amber),var(--acid));transition:width .6s}
+</style>
+</head>
+<body>
+  <div class="hud">
+    <div class="eyebrow">The Savage Journey<small>Peak · One-Armed Bandit</small></div>
+    <div class="timer" id="timer">18<small>seconds</small></div>
+  </div>
+
+  <div class="machine">
+    <div class="reels">
+      <div class="reel" id="r1">🎰</div>
+      <div class="reel" id="r2">🎰</div>
+      <div class="reel" id="r3">🎰</div>
+    </div>
+    <div class="lever">
+      <button class="pull" id="pullBtn">PULL</button>
+    </div>
+  </div>
+
+  <div class="intro" id="intro">
+    <h1>The One-Armed<br>Bandit</h1>
+    <p style="margin-top:16px;max-width:28ch;opacity:.85">Stop the reels on the bats. You need at least <b>two bats</b> to walk away with your mind intact.</p>
+    <button class="go-btn" id="goBtn">🎰 FEED THE MACHINE</button>
+  </div>
+
+  <div class="result" id="result">
+    <div class="verdict" id="verdict"></div>
+    <p id="flavor" style="margin:14px 0;opacity:.85;max-width:28ch"></p>
+    <div class="gor-wrap"><div class="gor-track"><div class="gor-fill" id="gorFill"></div></div></div>
+    <button class="close-btn" id="closeBtn">Close</button>
+  </div>
+
+<script>
+const SYMBOLS = ["🦇","🎰","🦎","💎","🦇","⚡","🦇"];
+const TG = window.Telegram?.WebApp;
+const params = new URLSearchParams(location.search);
+const PEAK_ID = params.get("peak_id");
+const LIVE = !!(TG && TG.initData && PEAK_ID);
+if (TG){ TG.ready(); TG.expand(); try{TG.setBackgroundColor("#0b0a12")}catch(e){} }
+
+let timeLeft=18, resolved=false, gor=100, spinning=false;
+const reels = [document.getElementById("r1"), document.getElementById("r2"), document.getElementById("r3")];
+
+function tick(){
+  timeLeft--;
+  const el=document.getElementById("timer");
+  el.firstChild.textContent=Math.max(0,timeLeft);
+  el.className="timer"+(timeLeft<=5?" crit":timeLeft<=10?" warn":"");
+  if(timeLeft<=0 && !resolved) finish(false);
+}
+
+document.getElementById("goBtn").onclick=()=>{
+  document.getElementById("intro").style.display="none";
+  setInterval(tick,1000);
+};
+
+document.getElementById("pullBtn").onclick=()=>{
+  if(spinning||resolved) return;
+  spinning=true;
+  document.getElementById("pullBtn").disabled=true;
+  let results=[];
+  reels.forEach((reel,i)=>{
+    let n=0;
+    const iv=setInterval(()=>{
+      reel.textContent=SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)];
+      n++;
+      if(n>12+i*4){
+        clearInterval(iv);
+        const final=SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)];
+        reel.textContent=final;
+        results[i]=final;
+        if(results.filter(Boolean).length===3){
+          spinning=false;
+          const bats=results.filter(s=>s==="🦇").length;
+          finish(bats>=2);
+        }
+      }
+    },80);
+  });
+};
+
+async function finish(won){
+  if(resolved) return;
+  resolved=true;
+  let outcome;
+  if(LIVE){
+    try{
+      const res=await fetch("/api/peak/answer",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({peak_id:PEAK_ID,challenge:"bandit",init_data:TG.initData,hit:won})});
+      outcome=await res.json();
+    }catch(e){outcome={success:won,gor:won?gor:Math.max(0,gor-14),gonzo_delta:won?10:0,eliminated:false}}
+  }else{
+    outcome={success:won,gor:won?gor:Math.max(0,gor-14),gonzo_delta:won?10:0,eliminated:false};
+  }
+  const result=document.getElementById("result");
+  document.getElementById("verdict").textContent=won?"Jackpot.":"House wins.";
+  document.getElementById("flavor").textContent=won?"Two bats. The machine lets you keep your mind... for now.":"The reels mock you. The desert takes its cut.";
+  document.getElementById("gorFill").style.width=outcome.gor+"%";
+  result.classList.add(won?"win":"lose","show");
+}
+document.getElementById("closeBtn").onclick=()=>{if(TG)TG.close();else location.reload()};
+</script>
+</body>
+</html>
