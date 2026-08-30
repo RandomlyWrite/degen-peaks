@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mile Marker Zero</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0b0a12; --panel:#15111f; --panel-2:#1d1730;
+    --acid:#b6ff3a; --blood:#ff2f47; --neon:#ff3ea5;
+    --amber:#ffc400; --bone:#ece3d0; --ash:#6b6478;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:var(--void)}
+  body{font-family:'Special Elite',ui-monospace,monospace;color:var(--bone);
+    user-select:none;touch-action:none}
+  canvas{position:fixed;inset:0;display:block}
+  .grain{position:fixed;inset:0;pointer-events:none;z-index:40;opacity:.07;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E")}
+  .vignette{position:fixed;inset:0;pointer-events:none;z-index:39;
+    box-shadow:inset 0 0 180px 50px rgba(0,0,0,.92)}
+  .flash{position:fixed;inset:0;pointer-events:none;z-index:38;opacity:0}
+  .flash.bad{background:radial-gradient(circle,rgba(255,47,71,.4),transparent 70%)}
+  .flash.pop{animation:flashpop .3s ease-out}
+  @keyframes flashpop{0%{opacity:1}100%{opacity:0}}
+  body.shake{animation:shake .4s cubic-bezier(.36,.07,.19,.97)}
+  @keyframes shake{10%,90%{transform:translate(-3px,2px)}30%,70%{transform:translate(5px,-3px)}50%{transform:translate(-5px,3px)}}
+
+  .hud{position:fixed;top:0;left:0;right:0;z-index:30;padding:14px 16px 0;
+    display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+  .eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--blood);
+    border-left:3px solid var(--blood);padding-left:8px;line-height:1.4}
+  .eyebrow small{display:block;color:var(--ash);letter-spacing:.2em}
+  .timer{font-family:'Anton',sans-serif;font-size:46px;line-height:.8;text-align:right;
+    font-variant-numeric:tabular-nums;text-shadow:0 2px 12px rgba(0,0,0,.8)}
+  .timer.warn{color:var(--amber)}
+  .timer.crit{color:var(--acid)}
+  .timer small{display:block;font-family:'Special Elite';font-size:9px;
+    letter-spacing:.2em;color:var(--ash);text-transform:uppercase}
+
+  .mirror{position:fixed;top:78px;right:16px;z-index:30;width:110px;height:70px;
+    border:2px solid rgba(236,227,208,.25);border-radius:8px;background:#0a0810;
+    overflow:hidden;pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,.7)}
+  .mirror canvas{width:100%;height:100%}
+
+  .intro{position:fixed;inset:0;z-index:45;background:rgba(6,5,10,.9);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:32px}
+  .intro h1{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;
+    font-size:clamp(34px,13vw,62px);line-height:.86;color:var(--bone);
+    text-shadow:3px 3px 0 var(--blood), -2px -2px 0 rgba(182,255,58,.4)}
+  .intro p{margin-top:18px;font-size:14px;line-height:1.55;max-width:32ch;opacity:.88}
+  .intro p b{color:var(--acid)}
+  .intro p i{color:var(--blood);font-style:normal}
+  .go-btn{margin-top:30px;font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.08em;
+    text-transform:uppercase;color:#fff;background:var(--blood);
+    border:none;padding:16px 38px;border-radius:12px;cursor:pointer;
+    box-shadow:0 0 30px rgba(255,47,71,.4)}
+  .go-btn:active{transform:scale(.94)}
+
+  .result{position:fixed;inset:0;z-index:60;background:rgba(6,5,10,.94);
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px;text-align:center}
+  .result.show{display:flex;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0}}
+  .result .verdict{font-family:'Anton',sans-serif;font-size:clamp(40px,15vw,76px);
+    line-height:.85;text-transform:uppercase;margin-bottom:16px}
+  .result.win .verdict{color:var(--acid);text-shadow:3px 3px 0 var(--neon)}
+  .result.lose .verdict{color:var(--blood);text-shadow:3px 3px 0 #000}
+  .result .flavor{font-size:15px;line-height:1.5;opacity:.85;max-width:30ch;margin-bottom:22px}
+  .result .stat{font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--ash)}
+  .result .stat b{color:var(--bone)}
+  .gor-wrap{width:min(320px,80vw);margin-top:20px}
+  .gor-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .gor-label{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ash)}
+  .gor-val{font-family:'Anton',sans-serif;font-size:20px;color:var(--acid)}
+  .gor-track{height:13px;border-radius:8px;background:#15111f;overflow:hidden;
+    border:1px solid rgba(236,227,208,.08)}
+  .gor-fill{height:100%;width:100%;border-radius:8px;
+    background:linear-gradient(90deg,var(--blood),var(--amber) 45%,var(--acid));
+    transition:width .7s cubic-bezier(.22,1,.36,1)}
+  .close-btn{margin-top:26px;font-family:'Special Elite';font-size:13px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--ash);border:1px solid var(--ash);
+    background:transparent;padding:12px 22px;border-radius:8px;cursor:pointer}
+</style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div class="grain"></div>
+  <div class="vignette"></div>
+  <div class="flash bad" id="flashBad"></div>
+
+  <div class="hud">
+    <div class="eyebrow">The Savage Journey<small>Peak · The Road Is Ending</small></div>
+    <div class="timer" id="timer">24<small>to zero</small></div>
+  </div>
+  <div class="mirror"><canvas id="mirror"></canvas></div>
+
+  <div class="intro" id="intro">
+    <h1>Mile Marker<br>Zero</h1>
+    <p>The road behind you is <b>disappearing</b>. The desert is eating the pavement in real time.<br><br>
+    <b>Drag left or right</b> to stay ahead of the vanishing line. Bat clusters can be swatted for a tiny push. Lizards force hard swerves.<br><br>
+    When the Attorney grabs the wheel, the controls <i>lie</i>.</p>
+    <button class="go-btn" id="goBtn">🚗 OUTRUN THE VOID</button>
+  </div>
+
+  <div class="result" id="result">
+    <div class="verdict" id="verdict"></div>
+    <p class="flavor" id="flavor"></p>
+    <p class="stat" id="statLine"></p>
+    <div class="gor-wrap">
+      <div class="gor-row"><span class="gor-label">Grip on Reality</span>
+        <span class="gor-val" id="gorVal">100%</span></div>
+      <div class="gor-track"><div class="gor-fill" id="gorFill"></div></div>
+    </div>
+    <button class="close-btn" id="closeBtn">Close the transmission</button>
+  </div>
+
+<script>
+const SURVIVE_SECONDS = 24;
+const TG = window.Telegram?.WebApp;
+const params = new URLSearchParams(location.search);
+const PEAK_ID = params.get("peak_id");
+const LIVE = !!(TG && TG.initData && PEAK_ID);
+if (TG){
+  TG.ready(); TG.expand();
+  try { TG.setBackgroundColor("#0b0a12"); TG.setHeaderColor("#0b0a12"); } catch(e){}
+  TG.disableVerticalSwipes?.();
+}
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const cv = document.getElementById("game");
+const cx = cv.getContext("2d");
+const mcv = document.getElementById("mirror");
+const mcx = mcv.getContext("2d");
+let W=0, H=0, DPR = Math.min(devicePixelRatio||1, 2);
+
+function resize(){
+  W = innerWidth; H = innerHeight;
+  cv.width = W*DPR; cv.height = H*DPR;
+  cv.style.width = W+"px"; cv.style.height = H+"px";
+  cx.setTransform(DPR,0,0,DPR,0,0);
+  mcv.width = 110*DPR; mcv.height = 70*DPR;
+  mcx.setTransform(DPR,0,0,DPR,0,0);
+}
+resize(); addEventListener("resize", resize);
+
+let running=false, resolved=false, gor=100;
+let timeLeft=SURVIVE_SECONDS, elapsed=0, lastT=0, tickAcc=0;
+let carLane = 1;
+let targetLane = 1;
+let vanishY = H;
+let invertUntil = 0;
+let hazards = [];
+
+function laneX(lane){ return W*0.2 + lane * W*0.3; }
+
+function spawnHazard(type){
+  hazards.push({
+    type,
+    lane: Math.floor(Math.random()*3),
+    y: -40,
+    speed: 180 + Math.random()*80 + elapsed*8,
+    dead: false
+  });
+}
+
+function onPointer(e){
+  if (!running || resolved) return;
+  const t = e.touches ? e.touches[0] : e;
+  const x = t.clientX;
+  if (x < W*0.33) targetLane = 0;
+  else if (x < W*0.66) targetLane = 1;
+  else targetLane = 2;
+}
+addEventListener("pointerdown", onPointer, {passive:true});
+addEventListener("pointermove", e => { if (e.buttons || e.pressure) onPointer(e); }, {passive:true});
+addEventListener("touchmove", onPointer, {passive:true});
+
+function loop(now){
+  if (!running) return;
+  const dt = Math.min(0.05, (now-lastT)/1000 || 0.016);
+  lastT = now;
+  elapsed += dt;
+
+  tickAcc += dt;
+  if (tickAcc >= 1){
+    tickAcc -= 1;
+    timeLeft -= 1;
+    updateTimer();
+    if (timeLeft <= 0 && !resolved){ endRound(true); return; }
+  }
+
+  const progress = elapsed / SURVIVE_SECONDS;
+  const riseSpeed = 28 + progress*progress*110;
+  vanishY -= riseSpeed * dt;
+
+  const inverted = now < invertUntil;
+  const desired = inverted ? (2 - targetLane) : targetLane;
+  carLane += (desired - carLane) * 0.18;
+
+  if (Math.random() < 0.018 + progress*0.04){
+    const r = Math.random();
+    if (r < 0.55) spawnHazard("bat");
+    else if (r < 0.85) spawnHazard("lizard");
+    else spawnHazard("mirage");
+  }
+
+  if (elapsed > 7.8 && elapsed < 8.1 && invertUntil === 0) invertUntil = now + 2200;
+  if (elapsed > 13.7 && elapsed < 14.0 && invertUntil < now) invertUntil = now + 2500;
+
+  for (const h of hazards){
+    if (h.dead) continue;
+    h.y += h.speed * dt;
+    if (Math.abs(h.lane - carLane) < 0.45 && h.y > H*0.72 && h.y < H*0.88){
+      h.dead = true;
+      if (h.type === "lizard"){
+        document.body.classList.remove("shake"); void document.body.offsetWidth;
+        document.body.classList.add("shake");
+        flashBad();
+        TG?.HapticFeedback?.notificationOccurred("error");
+      } else if (h.type === "bat"){
+        vanishY += 18;
+        TG?.HapticFeedback?.impactOccurred("light");
+      }
+    }
+    if (h.y > H + 60) h.dead = true;
+  }
+  hazards = hazards.filter(h => !h.dead);
+
+  if (vanishY < H*0.78){
+    endRound(false);
+    return;
+  }
+
+  draw(now, inverted);
+  requestAnimationFrame(loop);
+}
+
+function draw(now, inverted){
+  const sky = cx.createLinearGradient(0,0,0,H*0.35);
+  sky.addColorStop(0, "#0b0a12");
+  sky.addColorStop(1, "#2a1230");
+  cx.fillStyle = sky;
+  cx.fillRect(0,0,W,H*0.35);
+
+  cx.fillStyle = "#1a0f18";
+  cx.fillRect(0, H*0.35, W, H*0.65);
+
+  const roadTop = Math.max(H*0.35, vanishY);
+  const slices = 22;
+  for (let i=0; i<slices; i++){
+    const t0 = i/slices, t1 = (i+1)/slices;
+    const y0 = roadTop + (H - roadTop)*Math.pow(t0, 1.35);
+    const y1 = roadTop + (H - roadTop)*Math.pow(t1, 1.35);
+    if (y1 < roadTop) continue;
+
+    const persp0 = 0.25 + 0.75*t0;
+    const persp1 = 0.25 + 0.75*t1;
+    const c0 = W/2, c1 = W/2;
+    const w0 = W*0.38*persp0, w1 = W*0.38*persp1;
+
+    cx.fillStyle = i%2 ? "#221c2e" : "#2a2338";
+    cx.beginPath();
+    cx.moveTo(c0-w0, y0); cx.lineTo(c0+w0, y0);
+    cx.lineTo(c1+w1, y1); cx.lineTo(c1-w1, y1);
+    cx.closePath();
+    cx.fill();
+
+    if (i%2===0){
+      cx.fillStyle = "rgba(236,227,208,0.55)";
+      const lw = 3*persp0;
+      cx.fillRect(c0-lw, y0, lw*2, y1-y0);
+    }
+  }
+
+  const edgeGrad = cx.createLinearGradient(0, vanishY-30, 0, vanishY+20);
+  edgeGrad.addColorStop(0, "rgba(255,47,71,0)");
+  edgeGrad.addColorStop(0.6, "rgba(255,47,71,0.35)");
+  edgeGrad.addColorStop(1, "rgba(11,10,18,0.9)");
+  cx.fillStyle = edgeGrad;
+  cx.fillRect(0, vanishY-40, W, 80);
+
+  for (const h of hazards){
+    const x = laneX(h.lane);
+    cx.font = "32px serif";
+    cx.textAlign = "center";
+    cx.textBaseline = "middle";
+    if (h.type === "bat") cx.fillText("🦇", x, h.y);
+    else if (h.type === "lizard") cx.fillText("🦎", x, h.y);
+    else {
+      cx.globalAlpha = 0.45;
+      cx.fillText("🕳️", x, h.y);
+      cx.globalAlpha = 1;
+    }
+  }
+
+  const carX = laneX(carLane);
+  const carY = H*0.82;
+  cx.save();
+  cx.translate(carX, carY);
+  if (inverted) cx.rotate(Math.sin(now/80)*0.08);
+  cx.fillStyle = "#c8203a";
+  roundRect(-26, -32, 52, 54, 10);
+  cx.fill();
+  cx.fillStyle = "#1a1420";
+  roundRect(-18, -8, 36, 16, 5);
+  cx.fill();
+  cx.fillStyle = "#f2d7a0";
+  cx.beginPath(); cx.arc(-8, 2, 5, 0, 7); cx.fill();
+  cx.beginPath(); cx.arc(8, 2, 5, 0, 7); cx.fill();
+  cx.restore();
+
+  const m = Math.min(1, elapsed / SURVIVE_SECONDS);
+  if (!reduceMotion && m > 0.3){
+    cx.save();
+    cx.globalAlpha = (m-0.3)*0.25;
+    cx.drawImage(cv, 3, -2);
+    cx.drawImage(cv, -3, 2);
+    cx.restore();
+  }
+
+  mcx.fillStyle = "#0a0810";
+  mcx.fillRect(0,0,110,70);
+  mcx.fillStyle = "#1a0f18";
+  mcx.fillRect(0, 25, 110, 45);
+  const mirrorVanish = 70 - (1 - Math.max(0, (vanishY/H))) * 45;
+  mcx.fillStyle = "rgba(255,47,71,0.5)";
+  mcx.fillRect(0, mirrorVanish, 110, 70-mirrorVanish);
+  mcx.strokeStyle = "rgba(236,227,208,0.3)";
+  mcx.strokeRect(1,1,108,68);
+
+  function roundRect(x,y,w,h,r){
+    cx.beginPath();
+    cx.moveTo(x+r,y);
+    cx.arcTo(x+w,y,x+w,y+h,r);
+    cx.arcTo(x+w,y+h,x,y+h,r);
+    cx.arcTo(x,y+h,x,y,r);
+    cx.arcTo(x,y,x+w,y,r);
+    cx.closePath();
+  }
+}
+
+function updateTimer(){
+  const el = document.getElementById("timer");
+  el.firstChild.textContent = Math.max(0, timeLeft);
+  el.className = "timer" + (timeLeft<=5 ? " crit" : timeLeft<=10 ? " warn" : "");
+}
+
+function flashBad(){
+  const el = document.getElementById("flashBad");
+  el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
+}
+
+async function endRound(won){
+  if (resolved) return;
+  resolved = true; running = false;
+  if (!won){
+    flashBad();
+    document.body.classList.add("shake");
+    TG?.HapticFeedback?.notificationOccurred("error");
+  }
+  let outcome;
+  if (LIVE){
+    try{
+      const res = await fetch("/api/peak/answer", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          peak_id: PEAK_ID, challenge: "mile_marker_zero",
+          init_data: TG.initData,
+          hit: won, survived_s: Math.round(elapsed)
+        })
+      });
+      outcome = await res.json();
+    }catch(e){ outcome = localOutcome(won); }
+  } else {
+    outcome = localOutcome(won);
+  }
+  render(outcome);
+}
+
+function localOutcome(won){
+  const loss=16, gain=12;
+  return won
+    ? { success:true,  gor, gonzo_delta:gain, eliminated:false }
+    : { success:false, gor:Math.max(0,gor-loss), gonzo_delta:0, eliminated:(gor-loss)<=0 };
+}
+
+function render(o){
+  const result = document.getElementById("result");
+  const verdict = document.getElementById("verdict");
+  const flavor = document.getElementById("flavor");
+  const statLine = document.getElementById("statLine");
+  gor = o.gor;
+  document.getElementById("gorFill").style.width = gor+"%";
+  document.getElementById("gorVal").textContent = gor+"%";
+
+  if (o.success){
+    result.classList.add("win");
+    verdict.textContent = "Zero reached.";
+    flavor.textContent = "The vanishing line freezes. The road decides, for one more mile, to keep existing. The Attorney opens one eye. “Still here?” he asks, disappointed.";
+    statLine.innerHTML = `Gonzo Score <b>+${o.gonzo_delta}</b> · Grip holds at <b>${gor}%</b>`;
+  } else if (o.eliminated){
+    result.classList.add("lose");
+    verdict.textContent = "The void took the car.";
+    flavor.textContent = "Your Grip hit zero as the pavement ended under the rear wheels. You and the Shark are now desert property.";
+    statLine.innerHTML = `Grip on Reality <b>0%</b> · <b>Eliminated</b>`;
+  } else {
+    result.classList.add("lose");
+    verdict.textContent = "Road ended.";
+    flavor.textContent = "The vanishing line caught the rear bumper. One clean drop into the scrub. The bats are already circling the wreck.";
+    statLine.innerHTML = `Grip on Reality dropped to <b>${gor}%</b>`;
+  }
+  result.classList.add("show");
+}
+
+document.getElementById("closeBtn").addEventListener("click", ()=>{
+  if (TG) TG.close(); else location.reload();
+});
+document.getElementById("goBtn").addEventListener("click", ()=>{
+  document.getElementById("intro").style.display = "none";
+  running = true;
+  lastT = performance.now();
+  vanishY = H * 0.92;
+  updateTimer();
+  requestAnimationFrame(loop);
+});
+document.getElementById("gorFill").style.width = gor+"%";
+</script>
+</body>
+</html>
